@@ -10,30 +10,33 @@ import (
 
 var wg *sync.WaitGroup = &sync.WaitGroup{}
 
-var worker = func(ch <-chan struct{}, sleeptime time.Duration, chanId string) {
-	defer wg.Done()
+var Worker = func(ch <-chan struct{}, sleeptime time.Duration, chanId string, sg *sync.WaitGroup) {
+	defer sg.Done()
+	fmt.Println("starting worker " + chanId)
 	if ch == nil {
 		fmt.Println("worker chan is nil")
 	}
 	for {
 		val, ok := <-ch
 		if !ok {
-			log.Printf("closing sink channel %v\n", chanId)
+			log.Printf("sink channel %v closed\n", chanId)
 			break
 		}
 		// time.Sleep(sleeptime) // to simulate blocking network i/o
 		log.Printf("completed work %v at chan %v\n", val, chanId)
 	}
+	fmt.Println("Exiting worker " + chanId)
 }
 
-var manager = func(work chan<- struct{}) {
+var Manager = func(work chan<- struct{}, count int) {
 	// send work
-	for i := 100; i < 110; i++ {
+	for i := 100; i < 100+count; i++ {
 		log.Println("sending work")
 		work <- struct{}{}
 	}
 	log.Println("Sent total of 10 tasks")
 	close(work)
+	fmt.Println("Closed Manager")
 }
 
 func splitchan(source chan struct{}) map[string]chan struct{} {
@@ -135,12 +138,12 @@ func TestSplit() {
 
 	// start working
 	wg.Add(3)
-	go worker(ch1, time.Duration(1)*time.Millisecond, "1")
-	go worker(ch2, time.Duration(3)*time.Millisecond, "2")
-	go worker(ch3, time.Duration(5)*time.Millisecond, "3")
+	go Worker(ch1, time.Duration(1)*time.Millisecond, "1", wg)
+	go Worker(ch2, time.Duration(3)*time.Millisecond, "2", wg)
+	go Worker(ch3, time.Duration(5)*time.Millisecond, "3", wg)
 
 	// assing work
-	manager(source)
+	Manager(source, 10)
 
 	wg.Wait()
 }
